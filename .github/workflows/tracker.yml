@@ -5,6 +5,8 @@ on:
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch: {}
+  push:
+    branches: [ main ]
 
 # нужно, чтобы бот мог сохранять историю цен обратно в репозиторий
 permissions:
