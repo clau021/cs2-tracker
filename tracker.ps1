@@ -1,7 +1,8 @@
 ﻿param(
     [switch]$GetChatId,   # запустить с этим ключом, чтобы узнать свой chat_id
     [switch]$Once,        # сделать один проход и выйти (для проверки)
-    [switch]$Portfolio    # показать состояние портфеля (что куплено) и выйти
+    [switch]$Portfolio,   # показать состояние портфеля (что куплено) и выйти
+    [switch]$Backtest     # прогнать теневой бэктест по накопленной истории и выйти
 )
 
 # ============ КОДИРОВКА (чтобы русский текст не превращался в кракозябры) ============
@@ -109,6 +110,21 @@ function Parse-Int($s) {
     try { return [int]$t } catch { return 0 }
 }
 
+function Get-SellerNet($buyerPrice) {
+    # Точная сумма "на руки" после комиссий Steam.
+    # Комиссии: 5% (Steam) + 10% (издатель), каждая минимум 1, считаются от суммы ПРОДАВЦА и округляются вниз.
+    # Возвращаем наибольшую сумму продавца S, при которой S + f5 + f10 <= цена покупателя.
+    $p = [int][math]::Round([double]$buyerPrice)
+    if ($p -le 2) { return 0 }
+    $est = [int][math]::Floor($p / 1.15)
+    for ($s = $est + 3; $s -ge 1; $s--) {
+        $fSteam = [math]::Max(1, [int][math]::Floor($s * 0.05))
+        $fGame  = [math]::Max(1, [int][math]::Floor($s * 0.10))
+        if (($s + $fSteam + $fGame) -le $p) { return $s }
+    }
+    return [int][math]::Floor($p / 1.15)
+}
+
 # --- загрузка состояния (чтобы не спамить одинаковыми сигналами) ---
 $State = @{}
 if (Test-Path $StateFile) {
@@ -139,10 +155,12 @@ function Load-History {
             $t = Parse-IsoDate $p[0]
             if (-not $t) { continue }
             $name = $p[1]
-            $med = 0.0
+            $low = 0.0; $med = 0.0; $vol = 0
+            [double]::TryParse($p[2], [System.Globalization.NumberStyles]::Float, $InvCulture, [ref]$low) | Out-Null
             [double]::TryParse($p[3], [System.Globalization.NumberStyles]::Float, $InvCulture, [ref]$med) | Out-Null
+            if ($p.Count -ge 5) { [void][int]::TryParse((($p[4]) -replace '[^\d]',''), [ref]$vol) }
             if (-not $h.ContainsKey($name)) { $h[$name] = New-Object System.Collections.ArrayList }
-            [void]$h[$name].Add(@{ t = $t; med = $med })
+            [void]$h[$name].Add(@{ t = $t; low = $low; med = $med; vol = $vol })
         }
     } catch {}
     return $h
@@ -259,7 +277,7 @@ function Check-Portfolio {
             $isPeak = ($low -ge $med * (1 + $PeakAbovePct/100.0))
             if ($long.enough -and ($low -ge $long.avg * (1 + $PeakAbovePct/100.0))) { $isPeak = $true }
 
-            $net    = [math]::Round($low * (1 - $FeePercent/100.0), 0)   # на руки после комиссии
+            $net    = Get-SellerNet $low   # на руки после комиссий Steam (точный расчёт)
             $profit = [math]::Round($net - $h.buy, 0)
             $unlock = $h.date.AddDays(7)
             $locked = $now -lt $unlock
@@ -295,7 +313,7 @@ $head
 $($h.name)
 Куплено за: $($h.buy) ₸  ($($h.date.ToString("dd.MM.yyyy")))
 Продать сейчас примерно за: <b>$low ₸</b>
-На руки после комиссии (~$FeePercent%): <b>$net ₸</b>
+На руки после комиссий Steam: <b>$net ₸</b>
 Прибыль: <b>~$profit ₸</b>
 $extra
 $link
@@ -310,6 +328,64 @@ $link
         }
         Start-Sleep -Seconds $SleepBetweenItemsSec
     }
+}
+
+function Run-Backtest {
+    # Теневой бэктест: "если бы покупали каждый сигнал (скидка>=порог, ликвидность ок)
+    # и продавали в первый плюс через 7+ дней" — на нашей накопленной истории. Без риска.
+    $H = Load-History
+    $res = @{ enough = $false; days = 0; trades = 0; wins = 0; pl = 0; open = 0; text = "" }
+    if ($H.Count -eq 0) { $res.text = "🧪 Бэктест: истории ещё нет."; return $res }
+
+    $now = Get-Date
+    $earliest = $now
+    $maxHoldDays = 21
+    $trades = 0; $wins = 0; $totalPL = 0.0; $open = 0
+    foreach ($name in $H.Keys) {
+        $recs = @($H[$name] | Sort-Object { $_.t })
+        if ($recs.Count -eq 0) { continue }
+        if ($recs[0].t -lt $earliest) { $earliest = $recs[0].t }
+        $i = 0
+        while ($i -lt $recs.Count) {
+            $r = $recs[$i]
+            if ($r.med -le 0 -or $r.low -le 0) { $i++; continue }
+            $disc = (($r.med - $r.low) / $r.med) * 100
+            if (($disc -ge $DiscountPercent) -and ($r.vol -ge $MinVolume)) {
+                $buy      = $r.low
+                $unlockT  = $r.t.AddDays(7)
+                $deadline = $r.t.AddDays($maxHoldDays)
+                $sold = $false; $sellNet = 0; $lastNetInWin = $null; $lastIdx = $i
+                for ($j = $i + 1; $j -lt $recs.Count; $j++) {
+                    $rj = $recs[$j]
+                    if ($rj.t -gt $deadline) { break }
+                    $lastIdx = $j
+                    if ($rj.low -le 0) { continue }
+                    $net = Get-SellerNet $rj.low
+                    $lastNetInWin = $net
+                    if (($rj.t -ge $unlockT) -and ($net -gt $buy)) { $sellNet = $net; $sold = $true; break }
+                }
+                if ($sold) {
+                    $trades++; if (($sellNet - $buy) -gt 0) { $wins++ }; $totalPL += ($sellNet - $buy); $i = $lastIdx + 1
+                } elseif (($null -ne $lastNetInWin) -and ($recs[$lastIdx].t -ge $unlockT)) {
+                    # не вышли в плюс за окно — закрываем по последней цене (обычно минус)
+                    $trades++; if (($lastNetInWin - $buy) -gt 0) { $wins++ }; $totalPL += ($lastNetInWin - $buy); $i = $lastIdx + 1
+                } else {
+                    $open++; $i++   # позиция ещё "открыта" — данных не хватило, не считаем
+                }
+            } else { $i++ }
+        }
+    }
+    $spanDays = [math]::Round(($now - $earliest).TotalDays, 1)
+    $res.days = $spanDays; $res.trades = $trades; $res.wins = $wins; $res.pl = [math]::Round($totalPL, 0); $res.open = $open
+    if (($spanDays -lt ($maxHoldDays * 0.5)) -or ($trades -eq 0)) {
+        $res.text = "🧪 Бэктест: пока мало данных (история $spanDays дн, завершённых сделок $trades). Копим — будет точнее."
+    } else {
+        $res.enough = $true
+        $winRate = [math]::Round(100.0 * $wins / $trades, 0)
+        $avg     = [math]::Round($totalPL / $trades, 0)
+        $res.text = "🧪 Бэктест за $spanDays дн: сделок $trades, в плюс $wins ($winRate%), суммарно ~$($res.pl) ₸ (в среднем ~$avg ₸/сделка). Открытых ещё: $open."
+    }
+    return $res
 }
 
 function Send-Digest {
@@ -365,6 +441,13 @@ function Send-Digest {
             $bo = [math]::Round(([double]$script:WatchMedians[$k]) * (1 - $DiscountPercent/100.0), 0)
             $lines += ("• {0} — ≤ {1} ₸" -f $k, $bo)
         }
+    }
+
+    # раз в неделю (по понедельникам) — теневой бэктест стратегии по накопленной истории
+    if ($isMonday) {
+        $bt = Run-Backtest
+        $lines += ""
+        $lines += $bt.text
     }
 
     Send-Telegram ($lines -join "`n")
@@ -437,7 +520,7 @@ function Run-Cycle {
                             }
 
                             if ($doAlert) {
-                                $net    = [math]::Round($med * (1 - $FeePercent/100.0), 0)
+                                $net    = Get-SellerNet $med
                                 $profit = [math]::Round($net - $low, 0)
                                 $link   = "https://steamcommunity.com/market/listings/730/$enc"
 
@@ -462,7 +545,7 @@ function Run-Cycle {
                                     $vReason = "«падающий нож»: цена дешевеет давно ($($long.pct)% за $($long.days) дн) — вероятно наплыв предложения, за неделю упадёт ещё."
                                 } elseif ($profit -le 0) {
                                     $verdict = "⛔ ПРОПУСТИТЬ"
-                                    $vReason = "после комиссии ~$FeePercent% навара нет ($profit ₸) — просадка не покрывает комиссию."
+                                    $vReason = "после комиссий Steam навара нет ($profit ₸) — просадка не покрывает комиссию."
                                 } elseif ($long.enough -and ($low -ge $long.avg)) {
                                     $verdict = "⚠️ НА ГРАНИ"
                                     $vReason = "не настоящая просадка: цена ($low ₸) не ниже своей средней за $($long.days) дн (~$($long.avg) ₸). Скидка от медианы могла раздуться из-за недавнего всплеска — решай сам."
@@ -530,7 +613,14 @@ $link
 }
 
 # ================================  ЗАПУСК  ================================
-Prune-History   # чистим историю старше 10 дней, чтобы файл не разрастался
+Prune-History   # чистим историю старше ~32 дней, чтобы файл не разрастался
+
+if ($Backtest) {
+    $bt = Run-Backtest
+    Write-Host $bt.text
+    Send-Telegram $bt.text
+    exit
+}
 
 # При запуске НЕ по расписанию (ручной кнопкой или при обновлении репозитория) —
 # разовое подтверждение в Telegram. По расписанию (schedule) молчим, чтобы не было спама.
