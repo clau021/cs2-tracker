@@ -36,6 +36,8 @@ $LongTermMinDays = 7         # сколько дней истории нужно
 $LongTermFallPct = 12        # если за окно цена упала на столько % и больше — это "падающий нож" -> ⛔
 
 $SellAlertCooldownHours = 12 # как часто повторять сигнал "пора продавать" по одной покупке
+$PeakAbovePct           = 8  # если цена выше нормы (медианы/средней) на столько % — это "пик", зовём продавать активнее
+$DigestHourUTC          = 5  # час по UTC для суточной сводки в Telegram (5 UTC ≈ 10:00 по Казахстану). Заявки-подсказки — по понедельникам.
 
 # ==================================================================================
 # ====== Дальше можно ничего не трогать ======
@@ -231,6 +233,8 @@ function Check-Portfolio {
     if ($holdings.Count -eq 0) { return }
     Write-Host ("--- Портфель: позиций {0} ---" -f $holdings.Count) -ForegroundColor Cyan
     $now = Get-Date
+    $Hist = Load-History   # для распознавания пика цены по накопленной истории
+    $script:PortfolioLines = @()   # для суточной сводки
     foreach ($h in $holdings) {
         try {
             $enc  = [uri]::EscapeDataString($h.name)
@@ -246,6 +250,15 @@ function Check-Portfolio {
             }
             if (-not $low) { Write-Host ("  {0}: нет цены" -f $h.name) -ForegroundColor DarkGray; Start-Sleep -Seconds $SleepBetweenItemsSec; continue }
 
+            $med = Parse-Price $resp.median_price; if (-not $med) { $med = $low }
+            $vol = Parse-Int $resp.volume
+            Append-History $h.name $low $med $vol           # копим историю и по своим покупкам (нужно для пика)
+            $long = Get-LongTermRef $Hist[$h.name] $low     # средняя цена за ~30 дней
+
+            # "пик": текущая цена заметно выше нормы (медианы или средней за ~30 дн)
+            $isPeak = ($low -ge $med * (1 + $PeakAbovePct/100.0))
+            if ($long.enough -and ($low -ge $long.avg * (1 + $PeakAbovePct/100.0))) { $isPeak = $true }
+
             $net    = [math]::Round($low * (1 - $FeePercent/100.0), 0)   # на руки после комиссии
             $profit = [math]::Round($net - $h.buy, 0)
             $unlock = $h.date.AddDays(7)
@@ -255,7 +268,10 @@ function Check-Portfolio {
             $pcol   = if ($profit -ge 0) { "Green" } else { "Red" }
             Write-Host ("  {0} | куплен за {1} | продать ~{2} (на руки {3}) | прибыль {4} | {5}" -f $h.name, $h.buy, $low, $net, $profit, $status) -ForegroundColor $pcol
 
-            # Telegram-сигнал: разблокирован И в плюсе -> пора продавать
+            $stShort = if ($locked) { "🔒 до " + $unlock.ToString("dd.MM") } else { "🟢 продавать" }
+            $script:PortfolioLines += @{ text = ("• {0}: куплен {1} → сейчас {2} (на руки {3}, P/L {4}) {5}" -f $h.name, $h.buy, $low, $net, $profit, $stShort); buy = [double]$h.buy; net = [double]$net }
+
+            # Telegram-сигнал: разблокирован И в плюсе -> пора продавать (на пике — активнее)
             if ((-not $locked) -and ($profit -ge 0)) {
                 $key  = "SELL::" + $h.name
                 $prev = $State[$key]
@@ -263,15 +279,25 @@ function Check-Portfolio {
                 if ($prev -and $prev.lastAlert) {
                     $hrs = (New-TimeSpan -Start ([datetime]$prev.lastAlert) -End $now).TotalHours
                     if ($hrs -lt $SellAlertCooldownHours) { $doAlert = $false }
+                    # пик с новой более высокой ценой (>3% выше прошлого сигнала) пробивает кулдаун
+                    if ($isPeak -and $prev.lastPrice -and ($low -ge ([double]$prev.lastPrice) * 1.03)) { $doAlert = $true }
                 }
                 if ($doAlert) {
+                    if ($isPeak) {
+                        $head  = "🔥 <b>ПИК ЦЕНЫ — продавай сейчас!</b>"
+                        $extra = "Цена сейчас выше обычной — хороший момент зафиксировать прибыль."
+                    } else {
+                        $head  = "🟢 <b>Пора продавать (в плюсе)</b>"
+                        $extra = "Можно продать в плюс. Если не срочно — иногда выгоднее дождаться локального пика."
+                    }
                     $msg = @"
-🟢 <b>Пора продавать (в плюсе)</b>
+$head
 $($h.name)
 Куплено за: $($h.buy) ₸  ($($h.date.ToString("dd.MM.yyyy")))
-Выставить на продажу примерно за: <b>$low ₸</b>
+Продать сейчас примерно за: <b>$low ₸</b>
 На руки после комиссии (~$FeePercent%): <b>$net ₸</b>
 Прибыль: <b>~$profit ₸</b>
+$extra
 $link
 "@
                     Send-Telegram $msg $link "🟢 Открыть на Steam (продать)"
@@ -286,10 +312,71 @@ $link
     }
 }
 
+function Send-Digest {
+    # раз в сутки (после часа $DigestHourUTC по UTC) шлём сводку. По понедельникам — ещё и заявки-подсказки.
+    $nowUtc = (Get-Date).ToUniversalTime()
+    $today  = $nowUtc.ToString("yyyy-MM-dd")
+    if ($nowUtc.Hour -lt $DigestHourUTC) { return }
+    if ($State["_lastDigestDate"] -eq $today) { return }
+
+    $isMonday      = ($nowUtc.DayOfWeek -eq [System.DayOfWeek]::Monday)
+    $havePortfolio = ($script:PortfolioLines -and $script:PortfolioLines.Count -gt 0)
+    if ((-not $havePortfolio) -and (-not $isMonday)) {
+        $State["_lastDigestDate"] = $today; Save-State; return   # нечего показывать — просто отмечаем день
+    }
+
+    # сигналов за 24ч + чистка отметок старше 48ч
+    $sig24 = 0; $kept = @()
+    if ($State["_signalTimes"]) {
+        foreach ($t in @($State["_signalTimes"])) {
+            $dt = Parse-IsoDate $t
+            if ($dt) {
+                $hrs = ($nowUtc - $dt.ToUniversalTime()).TotalHours
+                if ($hrs -le 24) { $sig24++ }
+                if ($hrs -le 48) { $kept += $t }
+            }
+        }
+        $State["_signalTimes"] = $kept
+    }
+
+    $lines = @()
+    $lines += "📊 <b>Сводка CS2 за сутки</b>"
+    $lines += "Сигналов «брать» за 24ч: <b>$sig24</b>"
+
+    if ($havePortfolio) {
+        $lines += ""
+        $lines += "<b>Портфель:</b>"
+        $totBuy = 0.0; $totVal = 0.0
+        foreach ($p in $script:PortfolioLines) {
+            $lines += $p.text
+            $totBuy += [double]$p.buy; $totVal += [double]$p.net
+        }
+        $totProfit = [math]::Round($totVal - $totBuy, 0)
+        $lines += ("Итого вложено: {0} ₸ → на руки сейчас ~{1} ₸ (P/L ~{2} ₸)" -f [math]::Round($totBuy,0), [math]::Round($totVal,0), $totProfit)
+    } else {
+        $lines += "Портфель пуст — покупок пока нет."
+    }
+
+    if ($isMonday -and $script:WatchMedians -and $script:WatchMedians.Count -gt 0) {
+        $lines += ""
+        $lines += "<b>💡 Заявки на покупку (недельная подсказка)</b>"
+        $lines += "Поставь на Steam ордер по цене ≤ указанной — поймает дип сам:"
+        foreach ($k in $script:WatchMedians.Keys) {
+            $bo = [math]::Round(([double]$script:WatchMedians[$k]) * (1 - $DiscountPercent/100.0), 0)
+            $lines += ("• {0} — ≤ {1} ₸" -f $k, $bo)
+        }
+    }
+
+    Send-Telegram ($lines -join "`n")
+    $State["_lastDigestDate"] = $today
+    Save-State
+}
+
 function Run-Cycle {
     if (-not (Test-Path $ItemsFile)) { Write-Host "Нет файла items.txt рядом со скриптом." -ForegroundColor Red; return }
 
     $Hist = Load-History
+    $script:WatchMedians = [ordered]@{}   # медианы предметов для недельной подсказки по заявкам
 
     $items = Get-Content -Path $ItemsFile -Encoding UTF8 |
         ForEach-Object { $_.Trim() } |
@@ -321,6 +408,7 @@ function Run-Cycle {
 
                 if ($low -and $med -and $med -gt 0) {
                     $discount = [math]::Round((($med - $low) / $med) * 100, 1)
+                    $script:WatchMedians[$name] = $med   # для недельной подсказки по заявкам на покупку
 
                     # тренд цены за ~7 дней (по нашей накопленной истории)
                     $trend = Get-Trend $Hist[$name] $med
@@ -386,6 +474,9 @@ function Run-Cycle {
                                     $vReason = "просадка $discount%, ликвидность ок, недельный тренд $($trend.label), долгосрочно не падает. Навар ~$profit ₸ после комиссии."
                                 }
 
+                                # цена заявки на покупку (buy order): ставим ниже нормы, чтобы поймать будущий дип автоматически
+                                $buyOrder = [math]::Round($med * (1 - $DiscountPercent/100.0), 0)
+
                                 $msg = @"
 🔥 <b>Выгодный лот CS2</b>
 $name
@@ -398,11 +489,16 @@ $vReason
 📈 Тренд за неделю: <b>$trendText</b>
 🗓 Долгий ориентир: <b>$longText</b>
 Потенциальный навар: ~<b>$profit ₸</b>
+💡 Не хочешь ждать сигнала — можно держать <b>заявку на покупку ~$buyOrder ₸</b> (сработает сама на дипе).
 ⏳ Куплено на маркете = продать можно только через 7 дней (навар зависит от цены на тот момент).
 $link
 "@
                                 Send-Telegram $msg $link "🛒 Купить на Steam"
                                 $State[$name] = @{ lastAlert = (Get-Date).ToString("o"); lastPrice = $low }
+                                # запоминаем время сигнала (для суточной сводки — счётчик за 24ч)
+                                $sigTimes = @(); if ($State["_signalTimes"]) { $sigTimes = @($State["_signalTimes"]) }
+                                $sigTimes += (Get-Date).ToString("o")
+                                $State["_signalTimes"] = $sigTimes
                                 Save-State
                             }
                         }
@@ -428,6 +524,9 @@ $link
 
     # после списка на покупку проверяем свои покупки (портфель)
     Check-Portfolio
+
+    # раз в сутки — сводка в Telegram (и по понедельникам — подсказка по заявкам на покупку)
+    Send-Digest
 }
 
 # ================================  ЗАПУСК  ================================
