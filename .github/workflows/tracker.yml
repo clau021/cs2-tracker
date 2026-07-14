@@ -1,0 +1,41 @@
+name: CS2 Tracker
+
+# Запускается по расписанию (примерно каждые 15 минут) и вручную кнопкой.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+# нужно, чтобы бот мог сохранять историю цен обратно в репозиторий
+permissions:
+  contents: write
+
+# не запускать два прохода одновременно
+concurrency:
+  group: cs2-tracker
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Забрать файлы репозитория
+        uses: actions/checkout@v4
+
+      - name: Один проход трекера
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT: ${{ secrets.TG_CHAT }}
+        run: pwsh -File ./tracker.ps1 -Once
+
+      - name: Сохранить историю цен обратно в репозиторий
+        run: |
+          git config user.name "cs2-tracker-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A state.json history.tsv || true
+          if git diff --cached --quiet; then
+            echo "Изменений состояния нет — коммит не нужен."
+          else
+            git commit -m "Обновление истории цен [skip ci]"
+            git push
+          fi
