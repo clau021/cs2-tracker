@@ -26,6 +26,7 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT: ${{ secrets.TG_CHAT }}
+          RUN_KIND: ${{ github.event_name }}
         run: pwsh -File ./tracker.ps1 -Once
 
       - name: Сохранить историю цен обратно в репозиторий
