@@ -455,8 +455,74 @@ function Send-Digest {
     Save-State
 }
 
+function Handle-Command($text, $m) {
+    $lc = $text.ToLower()
+    if ($lc -in @('помощь','help','/help','/start')) {
+        Send-Telegram @"
+🤖 <b>Команды бота</b>
+• <b>куплено 15900</b> — в ОТВЕТ (reply) на сигнал: занести покупку в портфель
+• <b>куплено Название ; 15900</b> — занести покупку вручную
+• <b>портфель</b> — показать мои покупки и прибыль
+• <b>бэктест</b> — прогнать бэктест стратегии
+• <b>помощь</b> — этот список
+Отвечаю раз в ~15 минут (когда бот делает проход).
+"@
+        return
+    }
+    if ($lc -in @('портфель','portfolio','/portfolio')) { $script:CmdWantPortfolio = $true; return }
+    if ($lc -in @('бэктест','backtest','/backtest')) { $bt = Run-Backtest; Send-Telegram $bt.text; return }
+    if ($lc -like 'куплено*' -or $lc -like 'купил*') {
+        $rest = ($text -replace '^(?i)(куплено|купил[аи]?)\s*', '').Trim()
+        $name = $null; $price = $null
+        if ($rest -match ';') {
+            $parts = $rest -split ';', 2
+            $name = $parts[0].Trim(); $price = Parse-Price $parts[1]
+        } else {
+            $price = Parse-Price $rest
+            if ($m.reply_to_message -and $m.reply_to_message.text) {
+                foreach ($ln in ($m.reply_to_message.text -split "`n")) {
+                    if ($ln -match '\|') { $name = $ln.Trim(); break }   # строка с названием скина
+                }
+            }
+        }
+        if (-not $name)  { Send-Telegram "Не понял, какой предмет. Ответь этой командой на сообщение-сигнал, или напиши: куплено Название ; цена"; return }
+        if (-not $price -or $price -le 0) { Send-Telegram "Не понял цену. Пример: куплено 15900"; return }
+        $date = (Get-Date).ToString("yyyy-MM-dd")
+        Add-Content -Path $PortfolioFile -Value ("{0} ; {1} ; {2}" -f $name, [int]$price, $date) -Encoding UTF8
+        Send-Telegram ("✅ Добавил в портфель: {0} за {1} ₸ ({2}). Прослежу и напишу, когда пора продавать." -f $name, [int]$price, $date)
+        return
+    }
+    Send-Telegram "Не понял команду. Напиши «помощь» для списка."
+}
+
+function Poll-Commands {
+    # читаем сообщения пользователя из Telegram и выполняем простые команды (интерактив без сервера)
+    if (-not $TelegramToken -or -not $TelegramChatId) { return }
+    $offset = 0
+    if ($State["_updateOffset"]) { try { $offset = [int]$State["_updateOffset"] } catch {} }
+    $firstTime = (-not $State["_updateOffset"])   # первый запуск — пропускаем старый backlog сообщений
+    try {
+        $r = Invoke-RestMethod -Uri "https://api.telegram.org/bot$TelegramToken/getUpdates?timeout=0&offset=$($offset+1)" -TimeoutSec 20
+    } catch { return }
+    if (-not $r.ok -or -not $r.result) { return }
+    foreach ($upd in $r.result) {
+        $offset = [int]$upd.update_id
+        if ($firstTime) { continue }   # только запоминаем offset, старые команды не выполняем
+        $msg = $upd.message
+        if (-not $msg) { continue }
+        if ([string]$msg.chat.id -ne [string]$TelegramChatId) { continue }   # только свой чат
+        $t = ([string]$msg.text).Trim()
+        if ($t -ne '') { try { Handle-Command $t $msg } catch { Write-Host "  [!] команда '$t': $($_.Exception.Message)" -ForegroundColor Red } }
+    }
+    $State["_updateOffset"] = $offset
+    Save-State
+}
+
 function Run-Cycle {
     if (-not (Test-Path $ItemsFile)) { Write-Host "Нет файла items.txt рядом со скриптом." -ForegroundColor Red; return }
+
+    $script:CmdWantPortfolio = $false
+    Poll-Commands   # сначала читаем команды пользователя из Telegram
 
     $Hist = Load-History
     $script:WatchMedians = [ordered]@{}   # медианы предметов для недельной подсказки по заявкам
@@ -508,6 +574,14 @@ function Run-Cycle {
                             # опция включена: цену, которая явно падает, пропускаем
                             Write-Host ($line + "   [пропущено: цена падает]") -ForegroundColor DarkYellow
                         } else {
+                            # АНТИСНАЙП: сигналим только если просадка держится 2 прохода подряд (фильтр разовых дешёвых выставок)
+                            $pkey = "PEND::" + $name
+                            $pend = $State[$pkey]
+                            if (-not ($pend -and $pend.price -and ($low -le ([double]$pend.price) * 1.03))) {
+                                $State[$pkey] = @{ price = $low; t = (Get-Date).ToString("o") }
+                                Save-State
+                                Write-Host ($line + "   [замечено, ждём подтверждения на след. проходе]") -ForegroundColor DarkYellow
+                            } else {
                             Write-Host $line -ForegroundColor Green
 
                             # проверка "не повторять слишком часто"
@@ -584,8 +658,10 @@ $link
                                 $State["_signalTimes"] = $sigTimes
                                 Save-State
                             }
+                            }
                         }
                     } else {
+                        if ($State["PEND::"+$name]) { $State.Remove("PEND::"+$name) }
                         Write-Host $line -ForegroundColor Gray
                     }
                 } else {
@@ -607,6 +683,19 @@ $link
 
     # после списка на покупку проверяем свои покупки (портфель)
     Check-Portfolio
+
+    # ответ на команду "портфель" (если пользователь просил)
+    if ($script:CmdWantPortfolio) {
+        if ($script:PortfolioLines -and $script:PortfolioLines.Count -gt 0) {
+            $pl = @("<b>Твой портфель:</b>"); $tb = 0.0; $tv = 0.0
+            foreach ($p in $script:PortfolioLines) { $pl += $p.text; $tb += [double]$p.buy; $tv += [double]$p.net }
+            $pl += ("Итого вложено {0} ₸ → на руки ~{1} ₸ (P/L ~{2} ₸)" -f [math]::Round($tb,0), [math]::Round($tv,0), [math]::Round($tv-$tb,0))
+            Send-Telegram ($pl -join "`n")
+        } else {
+            Send-Telegram "Портфель пуст — покупок пока нет."
+        }
+        $script:CmdWantPortfolio = $false
+    }
 
     # раз в сутки — сводка в Telegram (и по понедельникам — подсказка по заявкам на покупку)
     Send-Digest
