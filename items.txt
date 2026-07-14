@@ -29,12 +29,16 @@ M4A1-S | Decimator (Field-Tested)
 M4A1-S | Basilisk (Field-Tested)
 M4A1-S | Nightmare (Field-Tested)
 M4A4 | Evil Daimyo (Field-Tested)
+M4A4 | Griffin (Field-Tested)
 
 # --- Снайперки AWP ---
 AWP | Fever Dream (Field-Tested)
 AWP | Atheris (Field-Tested)
 AWP | Duality (Field-Tested)
 AWP | Mortis (Field-Tested)
+AWP | Worm God (Field-Tested)
+AWP | Phobos (Field-Tested)
+AWP | PAW (Field-Tested)
 
 # --- Пистолеты ---
 Desert Eagle | Kumicho Dragon (Field-Tested)
@@ -42,8 +46,12 @@ Desert Eagle | Mecha Industries (Field-Tested)
 Glock-18 | Water Elemental (Field-Tested)
 Glock-18 | Vogue (Field-Tested)
 USP-S | Cortex (Field-Tested)
+USP-S | Cyrex (Field-Tested)
+USP-S | Guardian (Field-Tested)
 P250 | Asiimov (Field-Tested)
 Tec-9 | Fuel Injector (Field-Tested)
+Five-SeveN | Monkey Business (Field-Tested)
 
 # --- Прочее оружие ---
 SG 553 | Cyrex (Field-Tested)
+UMP-45 | Primal Saber (Field-Tested)
