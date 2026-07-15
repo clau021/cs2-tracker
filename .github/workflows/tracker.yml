@@ -1,45 +1,78 @@
 name: CS2 Tracker
 
-# Запускается по расписанию (примерно каждые 15 минут) и вручную кнопкой.
+# Настоящие 15 минут: один запуск крутит проверки каждые ~15 мин около 5 часов,
+# затем перезапускает сам себя (для этого нужен секрет DISPATCH_PAT).
+# Расписание — страховка на случай, если цепочка прервётся.
 on:
-  schedule:
-    - cron: "*/15 * * * *"
   workflow_dispatch: {}
+  schedule:
+    - cron: "9 */2 * * *"   # примерно раз в 2 часа (GitHub задерживает — это лишь подстраховка)
   push:
     branches: [ main ]
 
-# нужно, чтобы бот мог сохранять историю цен обратно в репозиторий
 permissions:
   contents: write
 
-# не запускать два прохода одновременно
 concurrency:
   group: cs2-tracker
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   run:
     runs-on: ubuntu-latest
+    timeout-minutes: 350
     steps:
-      - name: Забрать файлы репозитория
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Один проход трекера
+      - name: Проверки каждые ~15 минут (~5 часов), с сохранением истории
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT: ${{ secrets.TG_CHAT }}
-          RUN_KIND: ${{ github.event_name }}
-        run: pwsh -File ./tracker.ps1 -Once
-
-      - name: Сохранить историю цен обратно в репозиторий
-        if: always()
+        shell: bash
         run: |
+          set +e
           git config user.name "cs2-tracker-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "Изменений состояния нет — коммит не нужен."
-          else
-            git commit -m "Обновление истории цен [skip ci]"
-            git push
+          END=$(( $(date +%s) + 18000 ))   # ~5 часов
+          while [ "$(date +%s)" -lt "$END" ]; do
+            ITER_START=$(date +%s)
+            git pull --rebase --autostash origin main
+            if [ $? -ne 0 ]; then git rebase --abort; git reset --hard origin/main; fi
+            pwsh -File ./tracker.ps1 -Once
+            git add -A
+            if ! git diff --cached --quiet; then
+              git commit -m "Обновление истории цен [skip ci]"
+              git push origin main
+              if [ $? -ne 0 ]; then
+                git fetch origin main
+                git rebase origin/main || { git rebase --abort; git reset --hard origin/main; }
+                git push origin main
+              fi
+            fi
+            NOW=$(date +%s)
+            REMAIN=$(( END - NOW ))
+            [ "$REMAIN" -le 0 ] && break
+            ELAPSED=$(( NOW - ITER_START ))
+            SLEEP=$(( 900 - ELAPSED ))
+            [ "$SLEEP" -lt 60 ] && SLEEP=60
+            [ "$SLEEP" -gt "$REMAIN" ] && SLEEP=$REMAIN
+            echo "--- пауза ${SLEEP}s до следующего прохода ---"
+            sleep "$SLEEP"
+          done
+
+      - name: Перезапустить себя (непрерывная работа 24/7)
+        if: always()
+        env:
+          PAT: ${{ secrets.DISPATCH_PAT }}
+        shell: bash
+        run: |
+          if [ -z "$PAT" ]; then
+            echo "Секрет DISPATCH_PAT не задан — самоперезапуск отключён, работает только страховочное расписание."
+            exit 0
           fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $PAT" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/tracker.yml/dispatches" \
+            -d '{"ref":"main"}')
+          echo "Запрос перезапуска отправлен, ответ HTTP: $code (204 = ок)"
