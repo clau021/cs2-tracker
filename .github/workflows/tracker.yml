@@ -33,7 +33,7 @@ jobs:
           set +e
           git config user.name "cs2-tracker-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          END=$(( $(date +%s) + 18000 ))   # ~5 часов
+          END=$(( $(date +%s) + 30 ))   # ВРЕМЕННО: один проход и перезапуск (тест самоперезапуска)
           while [ "$(date +%s)" -lt "$END" ]; do
             ITER_START=$(date +%s)
             git pull --rebase --autostash origin main
