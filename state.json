@@ -1,4 +1,11 @@
 {
-  "_updateOffset": 934632096,
-  "_lastDigestDate": "2026-07-15"
+  "_signalTimes": [
+    "2026-07-15T22:17:13.8267602+00:00"
+  ],
+  "AK-47 | Emerald Pinstripe (Field-Tested)": {
+    "lastAlert": "2026-07-15T22:17:13.8251080+00:00",
+    "lastPrice": 1572.0
+  },
+  "_lastDigestDate": "2026-07-15",
+  "_updateOffset": 934632096
 }
