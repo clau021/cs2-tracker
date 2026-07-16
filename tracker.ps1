@@ -680,8 +680,10 @@ $link
             $code = $null
             try { $code = $_.Exception.Response.StatusCode.value__ } catch {}
             if ($code -eq 429) {
-                Write-Host "  [!] Steam ограничил частоту (429). Жду 60 сек..." -ForegroundColor Yellow
-                Start-Sleep -Seconds 60
+                # Steam притормаживает (обычно IP серверов GitHub) — НЕ зависаем на минуту,
+                # а коротко ждём и пропускаем предмет (проверим в следующий проход). Так проход остаётся быстрым.
+                Write-Host ("  [!] Steam 429 по {0} — пропускаю в этом проходе" -f $name) -ForegroundColor Yellow
+                Start-Sleep -Seconds 10
             } else {
                 Write-Host ("  [!] Ошибка по {0}: {1}" -f $name, $_.Exception.Message) -ForegroundColor Red
             }
