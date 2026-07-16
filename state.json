@@ -1,12 +1,17 @@
 {
-  "_lastDigestDate": "2026-07-16",
-  "_updateOffset": 934632098,
   "AK-47 | Emerald Pinstripe (Field-Tested)": {
     "lastAlert": "2026-07-15T23:09:27.7091898+00:00",
     "lastPrice": 1522.0
   },
   "_signalTimes": [
     "2026-07-15T22:17:13.8267602+00:00",
-    "2026-07-15T23:09:27.7124182+00:00"
-  ]
+    "2026-07-15T23:09:27.7124182+00:00",
+    "2026-07-16T23:33:07.4864246+00:00"
+  ],
+  "_updateOffset": 934632098,
+  "_lastDigestDate": "2026-07-16",
+  "AK-47 | Frontside Misty (Field-Tested)": {
+    "lastAlert": "2026-07-16T23:33:07.4829440+00:00",
+    "lastPrice": 10166.0
+  }
 }
