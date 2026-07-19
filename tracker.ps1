@@ -38,6 +38,12 @@ $LongTermDays    = 30        # окно долгосрочной истории 
 $LongTermMinDays = 7         # сколько дней истории нужно накопить, чтобы доверять долгому тренду
 $LongTermFallPct = 12        # если за окно цена упала на столько % и больше — это "падающий нож" -> ⛔
 
+# --- ДЕПОЗИТ (сколько денег всего на покупки) ---
+$Deposit            = 20000  # ₸ : весь банк на закупки. Трекер сам считает, сколько уже вложено
+                             # и сколько свободно, и не предлагает то, на что денег нет.
+$MaxPositionPercent = 50     # % : максимум депозита в ОДИН предмет (50% от 20000 = 10000 ₸).
+                             # Защита от "всё в один лот": если он просядет за 7 дней, вытягивать будет нечем.
+
 $SellAlertCooldownHours = 12 # как часто повторять сигнал "пора продавать" по одной покупке
 $PeakAbovePct           = 8  # если цена выше нормы (медианы/средней) на столько % — это "пик", зовём продавать активнее
 $DigestHourUTC          = 5  # час по UTC для суточной сводки в Telegram (5 UTC ≈ 10:00 по Казахстану). Заявки-подсказки — по понедельникам.
@@ -230,7 +236,9 @@ function Get-Trend($histForName, $curMed) {
 }
 
 # --- ПОРТФЕЛЬ: что куплено, по какой цене и когда ---
-function Load-Portfolio {
+function Load-Portfolio([switch]$IncludeSold) {
+    # Формат строки: Название ; цена покупки ; дата покупки [ ; цена продажи ; дата продажи ]
+    # Есть цена продажи -> позиция закрыта (деньги вернулись в депозит), следить за ней больше не нужно.
     $list = @()
     if (-not (Test-Path $PortfolioFile)) { return $list }
     foreach ($ln in (Get-Content -Path $PortfolioFile -Encoding UTF8)) {
@@ -243,9 +251,38 @@ function Load-Portfolio {
         $dt = $null
         try { $dt = [datetime]::Parse($parts[2].Trim(), $InvCulture) } catch {}
         if (-not $nm -or -not $bp -or -not $dt) { Write-Host ("  [портфель] не понял строку: {0}" -f $s) -ForegroundColor DarkYellow; continue }
-        $list += @{ name = $nm; buy = $bp; date = $dt }
+        $sp = $null; $sd = $null
+        if ($parts.Count -ge 4) { $sp = Parse-Price $parts[3] }
+        if ($parts.Count -ge 5) { try { $sd = [datetime]::Parse($parts[4].Trim(), $InvCulture) } catch {} }
+        $isOpen = (-not $sp)
+        if ((-not $isOpen) -and (-not $IncludeSold)) { continue }
+        $list += @{ name = $nm; buy = $bp; date = $dt; sellPrice = $sp; sellDate = $sd; open = $isOpen }
     }
     return ,$list
+}
+
+function Get-Budget {
+    # Сколько денег вложено, сколько свободно. Депозит "дышит": продал в плюс — банк вырос.
+    # Свободно = депозит + прибыль по закрытым сделкам - вложено в текущие позиции.
+    $all = Load-Portfolio -IncludeSold
+    $invested = 0.0; $realized = 0.0; $openCount = 0
+    foreach ($h in $all) {
+        if ($h.open) {
+            $invested += [double]$h.buy; $openCount++
+        } else {
+            $realized += ((Get-SellerNet $h.sellPrice) - [double]$h.buy)   # на руки после комиссий минус закуп
+        }
+    }
+    $free   = $Deposit + $realized - $invested
+    $maxPos = [math]::Round($Deposit * $MaxPositionPercent / 100.0, 0)
+    return @{
+        deposit  = $Deposit
+        invested = [math]::Round($invested, 0)
+        free     = [math]::Round($free, 0)
+        realized = [math]::Round($realized, 0)
+        open     = $openCount
+        maxPos   = $maxPos
+    }
 }
 
 function Check-Portfolio {
@@ -435,6 +472,17 @@ function Send-Digest {
         $lines += "Портфель пуст — покупок пока нет."
     }
 
+    $bd = Get-Budget
+    $lines += ""
+    $lines += "<b>💰 Депозит</b>"
+    $lines += ("Всего: {0} ₸  |  вложено: {1} ₸ ({2} поз.)  |  свободно: <b>{3} ₸</b>" -f $bd.deposit, $bd.invested, $bd.open, $bd.free)
+    if ($bd.realized -ne 0) { $lines += ("Заработано на проданном: {0} ₸" -f $bd.realized) }
+    if ($bd.free -le 0) {
+        $lines += "Свободных денег нет — новые лоты приходить будут, но с пометкой «купить не на что»."
+    } else {
+        $lines += ("На один лот сейчас можно тратить до {0} ₸." -f [math]::Min($bd.free, $bd.maxPos))
+    }
+
     if ($isMonday -and $script:WatchMedians -and $script:WatchMedians.Count -gt 0) {
         $lines += ""
         $lines += "<b>💡 Заявки на покупку (недельная подсказка)</b>"
@@ -464,7 +512,10 @@ function Handle-Command($text, $m) {
 🤖 <b>Команды бота</b>
 • <b>куплено 15900</b> — в ОТВЕТ (reply) на сигнал: занести покупку в портфель
 • <b>куплено Название ; 15900</b> — занести покупку вручную
+• <b>продано 1800</b> — в ОТВЕТ на сигнал о продаже: закрыть позицию, деньги вернутся в депозит
+• <b>продано Название ; 1800</b> — закрыть позицию вручную
 • <b>портфель</b> — показать мои покупки и прибыль
+• <b>депозит</b> — сколько денег вложено и сколько свободно
 • <b>бэктест</b> — прогнать бэктест стратегии
 • <b>помощь</b> — этот список
 Отвечаю раз в ~15 минут (когда бот делает проход).
@@ -472,6 +523,56 @@ function Handle-Command($text, $m) {
         return
     }
     if ($lc -in @('портфель','portfolio','/portfolio')) { $script:CmdWantPortfolio = $true; return }
+    if ($lc -in @('депозит','бюджет','деньги','/budget')) {
+        $bd = Get-Budget
+        $t = @("<b>💰 Депозит</b>",
+               ("Всего: {0} ₸" -f $bd.deposit),
+               ("Вложено сейчас: {0} ₸ ({1} поз.)" -f $bd.invested, $bd.open),
+               ("Свободно: <b>{0} ₸</b>" -f $bd.free))
+        if ($bd.realized -ne 0) { $t += ("Заработано на проданном: {0} ₸" -f $bd.realized) }
+        $t += ("Потолок на один лот: {0} ₸ ({1}% депозита)" -f $bd.maxPos, $MaxPositionPercent)
+        Send-Telegram ($t -join "`n")
+        return
+    }
+    if ($lc -like 'продано*' -or $lc -like 'продал*') {
+        $rest = ($text -replace '^(?i)(продано|продал[аи]?)\s*', '').Trim()
+        $name = $null; $price = $null
+        if ($rest -match ';') {
+            $parts = $rest -split ';', 2
+            $name = $parts[0].Trim(); $price = Parse-Price $parts[1]
+        } else {
+            $price = Parse-Price $rest
+            if ($m.reply_to_message -and $m.reply_to_message.text) {
+                foreach ($ln in ($m.reply_to_message.text -split "`n")) {
+                    if ($ln -match '\|') { $name = $ln.Trim(); break }
+                }
+            }
+        }
+        if (-not $name)  { Send-Telegram "Не понял, какой предмет. Ответь этой командой на сигнал о продаже, или напиши: продано Название ; цена"; return }
+        if (-not $price -or $price -le 0) { Send-Telegram "Не понял цену продажи. Пример: продано 1800"; return }
+        if (-not (Test-Path $PortfolioFile)) { Send-Telegram "Портфель пуст."; return }
+
+        # находим первую ЕЩЁ НЕ ПРОДАННУЮ строку с этим названием и дописываем цену/дату продажи
+        $plines = @(Get-Content -Path $PortfolioFile -Encoding UTF8)
+        $done = $false
+        for ($i = 0; $i -lt $plines.Count; $i++) {
+            $s = $plines[$i].Trim()
+            if ($s -eq '' -or $s.StartsWith('#')) { continue }
+            $p = $s -split ';'
+            if ($p.Count -lt 3) { continue }
+            if ($p[0].Trim() -ne $name) { continue }
+            if ($p.Count -ge 4 -and (Parse-Price $p[3])) { continue }   # эта уже продана, ищем следующую
+            $plines[$i] = ("{0} ; {1} ; {2} ; {3} ; {4}" -f $p[0].Trim(), $p[1].Trim(), $p[2].Trim(), [int]$price, (Get-Date).ToString("yyyy-MM-dd"))
+            $done = $true; break
+        }
+        if (-not $done) { Send-Telegram ("Не нашёл в портфеле непроданную позицию «{0}». Проверь название — оно должно совпадать с записью о покупке." -f $name); return }
+        Set-Content -Path $PortfolioFile -Value $plines -Encoding UTF8
+
+        $net = Get-SellerNet $price
+        $bd  = Get-Budget
+        Send-Telegram ("✅ Записал продажу: {0} за {1} ₸ (на руки после комиссий ~{2} ₸).`n💰 Свободно стало <b>{3} ₸</b> из {4} ₸." -f $name, [int]$price, $net, $bd.free, $bd.deposit)
+        return
+    }
     if ($lc -in @('бэктест','backtest','/backtest')) { $bt = Run-Backtest; Send-Telegram $bt.text; return }
     if ($lc -like 'куплено*' -or $lc -like 'купил*') {
         $rest = ($text -replace '^(?i)(куплено|купил[аи]?)\s*', '').Trim()
@@ -491,7 +592,13 @@ function Handle-Command($text, $m) {
         if (-not $price -or $price -le 0) { Send-Telegram "Не понял цену. Пример: куплено 15900"; return }
         $date = (Get-Date).ToString("yyyy-MM-dd")
         Add-Content -Path $PortfolioFile -Value ("{0} ; {1} ; {2}" -f $name, [int]$price, $date) -Encoding UTF8
-        Send-Telegram ("✅ Добавил в портфель: {0} за {1} ₸ ({2}). Прослежу и напишу, когда пора продавать." -f $name, [int]$price, $date)
+        $bd = Get-Budget
+        $tail = if ($bd.free -lt 0) {
+            ("`n⚠️ Вышли за депозит на {0} ₸ — потрачено больше {1} ₸. Проверь, всё ли проданное отмечено командой «продано»." -f [math]::Abs($bd.free), $bd.deposit)
+        } else {
+            ("`n💰 Свободно осталось <b>{0} ₸</b> из {1} ₸." -f $bd.free, $bd.deposit)
+        }
+        Send-Telegram (("✅ Добавил в портфель: {0} за {1} ₸ ({2}). Прослежу и напишу, когда пора продавать." -f $name, [int]$price, $date) + $tail)
         return
     }
     Send-Telegram "Не понял команду. Напиши «помощь» для списка."
@@ -639,6 +746,29 @@ function Run-Cycle {
                                     $vReason = "просадка $discount%, ликвидность ок, недельный тренд $($trend.label), долгосрочно не падает. Навар ~$profit ₸ после комиссии."
                                 }
 
+                                # --- ДЕПОЗИТ: хватает ли денег и не слишком ли крупная позиция ---
+                                # Вердикт выше говорит "хорош ли лот". Здесь добавляем "по карману ли он".
+                                # Плохой лот (⛔) остаётся плохим — деньги ничего не меняют, причину не перетираем.
+                                $bud     = Get-Budget
+                                $budLine = "💰 Депозит: вложено $($bud.invested) ₸, свободно <b>$($bud.free) ₸</b> из $($bud.deposit) ₸"
+                                if ($low -gt $bud.free) {
+                                    $need = [math]::Round($low - $bud.free, 0)
+                                    $budLine += "`n🚫 <b>Не хватает $need ₸</b> — купить сейчас не на что."
+                                    if ($verdict -notlike '⛔*') {
+                                        $verdict = "⛔ ЛОТ ХОРОШИЙ, НО ДЕНЕГ НЕТ"
+                                        $vReason = "брать стоило бы, но лот стоит $low ₸, а свободно $($bud.free) ₸ (не хватает $need ₸). Вариант: продать что-то из портфеля или пропустить."
+                                    }
+                                } elseif ($low -gt $bud.maxPos) {
+                                    $budLine += "`n⚠️ Это больше половины банка (потолок на один лот $($bud.maxPos) ₸)."
+                                    if ($verdict -notlike '⛔*') {
+                                        $verdict = "⚠️ СЛИШКОМ КРУПНО ДЛЯ ОДНОГО ЛОТА"
+                                        $vReason = "деньги есть (свободно $($bud.free) ₸), но $low ₸ — больше половины депозита. Если за 7 дней блокировки просядет, вытягивать будет нечем. Решай сам."
+                                    }
+                                } else {
+                                    $after = [math]::Round($bud.free - $low, 0)
+                                    $budLine += "`nПосле покупки останется ~$after ₸."
+                                }
+
                                 # цена заявки на покупку (buy order): ставим ниже нормы, чтобы поймать будущий дип автоматически
                                 $buyOrder = [math]::Round($med * (1 - $DiscountPercent/100.0), 0)
 
@@ -654,6 +784,7 @@ $vReason
 📈 Тренд за неделю: <b>$trendText</b>
 🗓 Долгий ориентир: <b>$longText</b>
 Потенциальный навар: ~<b>$profit ₸</b>
+$budLine
 💡 Не хочешь ждать сигнала — можно держать <b>заявку на покупку ~$buyOrder ₸</b> (сработает сама на дипе).
 ⏳ Куплено на маркете = продать можно только через 7 дней (навар зависит от цены на тот момент).
 $link
@@ -700,9 +831,12 @@ $link
             $pl = @("<b>Твой портфель:</b>"); $tb = 0.0; $tv = 0.0
             foreach ($p in $script:PortfolioLines) { $pl += $p.text; $tb += [double]$p.buy; $tv += [double]$p.net }
             $pl += ("Итого вложено {0} ₸ → на руки ~{1} ₸ (P/L ~{2} ₸)" -f [math]::Round($tb,0), [math]::Round($tv,0), [math]::Round($tv-$tb,0))
+            $bd = Get-Budget
+            $pl += ("💰 Свободно {0} ₸ из {1} ₸ (на один лот до {2} ₸)" -f $bd.free, $bd.deposit, [math]::Min($bd.free, $bd.maxPos))
             Send-Telegram ($pl -join "`n")
         } else {
-            Send-Telegram "Портфель пуст — покупок пока нет."
+            $bd = Get-Budget
+            Send-Telegram ("Портфель пуст — покупок пока нет.`n💰 Свободно {0} ₸ из {1} ₸ (на один лот до {2} ₸)" -f $bd.free, $bd.deposit, [math]::Min($bd.free, $bd.maxPos))
         }
         $script:CmdWantPortfolio = $false
     }
