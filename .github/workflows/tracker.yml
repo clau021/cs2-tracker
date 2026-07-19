@@ -39,6 +39,7 @@ jobs:
             git pull --rebase --autostash origin main
             if [ $? -ne 0 ]; then git rebase --abort; git reset --hard origin/main; fi
             pwsh -File ./tracker.ps1 -Once
+            RC=$?
             git add -A
             if ! git diff --cached --quiet; then
               git commit -m "Обновление истории цен [skip ci]"
@@ -49,6 +50,16 @@ jobs:
                 git push origin main
               fi
             fi
+
+            # Код 66 = Steam забанил IP этого сервера (сплошные 429, ноль цен).
+            # Сидеть тут дальше бессмысленно: адрес не сменится до конца запуска.
+            # Выходим — шаг перезапуска ниже поднимет новый запуск, а с ним и новый сервер с новым IP.
+            if [ "$RC" -eq 66 ]; then
+              echo "::warning::Steam блокирует IP этого сервера — перезапускаюсь, чтобы получить другой"
+              sleep 120   # небольшая пауза, чтобы не крутить перезапуски слишком часто
+              break
+            fi
+
             NOW=$(date +%s)
             REMAIN=$(( END - NOW ))
             [ "$REMAIN" -le 0 ] && break

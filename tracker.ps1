@@ -630,6 +630,11 @@ function Poll-Commands {
 function Run-Cycle {
     if (-not (Test-Path $ItemsFile)) { Write-Host "Нет файла items.txt рядом со скриптом." -ForegroundColor Red; return }
 
+    # Счётчики прохода: сколько цен реально получили и сколько раз Steam ответил 429.
+    # Нужны, чтобы отличить "просадок нет" от "нас забанили по IP" — снаружи это выглядит одинаково.
+    $script:PassOk  = 0
+    $script:Pass429 = 0
+
     $script:CmdWantPortfolio = $false
     Poll-Commands   # сначала читаем команды пользователя из Telegram
 
@@ -677,6 +682,7 @@ function Run-Cycle {
 
                     # копим историю по ВСЕМ предметам (нужно для расчёта тренда)
                     Append-History $name $low $med $vol
+                    $script:PassOk++
 
                     if ($discount -ge $DiscountPercent -and $vol -ge $MinVolume) {
                         if ($SkipFalling -and $trend.enough -and $trend.pct -le -$TrendDeadband) {
@@ -814,6 +820,13 @@ $link
                 # Steam притормаживает (обычно IP серверов GitHub) — НЕ зависаем на минуту,
                 # а коротко ждём и пропускаем предмет (проверим в следующий проход). Так проход остаётся быстрым.
                 Write-Host ("  [!] Steam 429 по {0} — пропускаю в этом проходе" -f $name) -ForegroundColor Yellow
+                $script:Pass429++
+                # Если подряд отказы и ни одной цены — IP забанен целиком, дальше идти бессмысленно.
+                # Раньше трекер честно обходил все 20 предметов и так по кругу часами. Выходим сразу.
+                if ($script:Pass429 -ge 5 -and $script:PassOk -eq 0) {
+                    Write-Host "  [!] 5 отказов подряд и ни одной цены — сервер забанен, прерываю проход" -ForegroundColor Red
+                    break
+                }
                 Start-Sleep -Seconds 10
             } else {
                 Write-Host ("  [!] Ошибка по {0}: {1}" -f $name, $_.Exception.Message) -ForegroundColor Red
@@ -841,6 +854,34 @@ $link
         $script:CmdWantPortfolio = $false
     }
 
+    # --- ДИАГНОЗ ПРОХОДА: мы собрали данные или нас блокируют по IP? ---
+    # Без этого "просадок нет" и "нас забанил Steam" выглядят в Telegram одинаково — тишиной.
+    $script:PassBlocked = $false
+    $now = Get-Date
+    if ($script:PassOk -gt 0) {
+        $State["_lastGoodPass"] = $now.ToString("o")
+        if ($State["_ipAlertSent"]) {
+            $State.Remove("_ipAlertSent")
+            Send-Telegram "✅ Связь со Steam восстановилась — цены снова собираются."
+        }
+        Save-State
+    } elseif ($script:Pass429 -ge 3) {
+        # ноль цен и куча отказов — этот сервер (IP) забанен Steam, работать с него бесполезно
+        $script:PassBlocked = $true
+        Write-Host ("[!] IP заблокирован Steam: получено 0 цен, отказов 429: {0}" -f $script:Pass429) -ForegroundColor Red
+
+        $lastGood   = Parse-IsoDate $State["_lastGoodPass"]
+        $silentHrs  = if ($lastGood) { [math]::Round((New-TimeSpan -Start $lastGood -End $now).TotalHours, 1) } else { 99 }
+        $lastAlert  = Parse-IsoDate $State["_ipAlertSent"]
+        $sinceAlert = if ($lastAlert) { (New-TimeSpan -Start $lastAlert -End $now).TotalHours } else { 99 }
+        # тревога не с первой минуты (смена сервера часто лечит за пару проходов) и не чаще раза в 6 ч
+        if ($silentHrs -ge 2 -and $sinceAlert -ge 6) {
+            Send-Telegram ("⚠️ <b>Трекер ослеп</b>`nSteam блокирует запросы (ошибка 429) — цены не собираются уже ~{0} ч.`nВАЖНО: сигналы о просадках сейчас НЕ придут, даже если просадки есть. Тишина в чате не значит «всё спокойно».`nПробую перезапуститься на другом сервере." -f $silentHrs)
+            $State["_ipAlertSent"] = $now.ToString("o")
+        }
+        Save-State
+    }
+
     # раз в сутки — сводка в Telegram (и по понедельникам — подсказка по заявкам на покупку)
     Send-Digest
 }
@@ -862,6 +903,13 @@ if ($Portfolio) {
 
 if ($Once) {
     Run-Cycle
+    # Код 66 = "этот сервер забанен Steam, данных не будет".
+    # Облачный сценарий по нему прекращает цикл и перезапускается — GitHub даст новый сервер с новым IP.
+    if ($script:PassBlocked) {
+        Write-Host "Выход с кодом 66 — прошу перезапуск на другом сервере." -ForegroundColor Yellow
+        exit 66
+    }
+    exit 0
 } else {
     Write-Host "Трекер запущен. Остановить — Ctrl+C." -ForegroundColor Cyan
     while ($true) {
