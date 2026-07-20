@@ -19,3 +19,4 @@
 # AWP | Fever Dream (Field-Tested) ; 7900 ; 2026-07-12
 AK-47 | Emerald Pinstripe (Well-Worn) ; 1568 ; 2026-07-16
 AK-47 | Emerald Pinstripe (Field-Tested) ; 1572 ; 2026-07-16
+USP-S | Guardian (Field-Tested) ; 1433 ; 2026-07-21
