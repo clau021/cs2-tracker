@@ -3,6 +3,11 @@
     "lastAlert": "2026-07-15T23:09:27.7091898+00:00",
     "lastPrice": 1522.0
   },
+  "AK-47 | Redline (Field-Tested)": {
+    "lastPrice": 19807.0,
+    "lastAlert": "2026-07-18T19:17:44.8498435+00:00"
+  },
+  "_updateOffset": 934632098,
   "AK-47 | Frontside Misty (Field-Tested)": {
     "lastAlert": "2026-07-16T23:48:07.5824846+00:00",
     "lastPrice": 9721.0
@@ -13,14 +18,11 @@
     "lastPrice": 8624.0
   },
   "_lastGoodPass": "2026-07-20T12:37:46.2773039+00:00",
-  "AK-47 | Redline (Field-Tested)": {
-    "lastPrice": 19807.0,
-    "lastAlert": "2026-07-18T19:17:44.8498435+00:00"
-  },
   "M4A4 | Griffin (Field-Tested)": {
     "lastAlert": "2026-07-20T12:16:10.7056711+00:00",
     "lastPrice": 2526.0
   },
+  "_ipAlertSent": "2026-07-20T14:38:04.0290789+00:00",
   "_signalTimes": [
     "2026-07-18T10:43:50.0742034+00:00",
     "2026-07-18T12:17:38.5939586+00:00",
@@ -36,7 +38,5 @@
   "P250 | Asiimov (Field-Tested)": {
     "lastAlert": "2026-07-18T10:43:50.0713967+00:00",
     "lastPrice": 7490.0
-  },
-  "_updateOffset": 934632098,
-  "_ipAlertSent": "2026-07-20T14:38:04.0290789+00:00"
+  }
 }
