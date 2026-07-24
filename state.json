@@ -1,30 +1,46 @@
 {
+  "M4A4 | Griffin (Field-Tested)": {
+    "lastPrice": 2497.0,
+    "lastAlert": "2026-07-21T23:18:05.5285281+00:00"
+  },
   "AK-47 | Redline (Field-Tested)": {
     "lastAlert": "2026-07-24T23:18:05.1174856+00:00",
     "lastPrice": 20059.0
-  },
-  "AK-47 | Frontside Misty (Field-Tested)": {
-    "lastPrice": 9928.0,
-    "lastAlert": "2026-07-24T11:27:55.3358055+00:00"
   },
   "M4A1-S | Basilisk (Field-Tested)": {
     "lastAlert": "2026-07-24T21:19:15.1132249+00:00",
     "lastPrice": 5234.0
   },
-  "_updateOffset": 934632098,
-  "_lastGoodPass": "2026-07-24T23:21:52.8637624+00:00",
   "_lastDigestDate": "2026-07-24",
-  "M4A1-S | Nightmare (Field-Tested)": {
-    "lastAlert": "2026-07-24T23:19:17.8940493+00:00",
-    "lastPrice": 5998.0
+  "AK-47 | Emerald Pinstripe (Field-Tested)": {
+    "lastAlert": "2026-07-22T23:27:14.7211687+00:00",
+    "lastPrice": 1492.0
+  },
+  "Five-SeveN | Monkey Business (Field-Tested)": {
+    "lastAlert": "2026-07-22T08:34:21.650093+00:00",
+    "lastPrice": 8027.0
   },
   "M4A4 | Desolate Space (Field-Tested)": {
     "lastAlert": "2026-07-19T22:26:40.0643425+00:00",
     "lastPrice": 8624.0
   },
+  "M4A1-S | Nightmare (Field-Tested)": {
+    "lastAlert": "2026-07-24T23:19:17.8940493+00:00",
+    "lastPrice": 5998.0
+  },
+  "_updateOffset": 934632098,
+  "Desert Eagle | Kumicho Dragon (Field-Tested)": {
+    "lastPrice": 12864.0,
+    "lastAlert": "2026-07-24T08:47:04.1347269+00:00"
+  },
+  "_lastGoodPass": "2026-07-24T23:36:59.9681681+00:00",
   "USP-S | Guardian (Field-Tested)": {
     "lastAlert": "2026-07-23T21:19:05.9498147+00:00",
     "lastPrice": 1400.0
+  },
+  "AK-47 | Frontside Misty (Field-Tested)": {
+    "lastPrice": 9928.0,
+    "lastAlert": "2026-07-24T11:27:55.3358055+00:00"
   },
   "_signalTimes": [
     "2026-07-18T10:43:50.0742034+00:00",
@@ -54,10 +70,6 @@
     "2026-07-24T23:18:05.1211265+00:00",
     "2026-07-24T23:19:17.8941334+00:00"
   ],
-  "Five-SeveN | Monkey Business (Field-Tested)": {
-    "lastAlert": "2026-07-22T08:34:21.650093+00:00",
-    "lastPrice": 8027.0
-  },
   "P250 | Asiimov (Field-Tested)": {
     "lastAlert": "2026-07-18T10:43:50.0713967+00:00",
     "lastPrice": 7490.0
@@ -65,17 +77,5 @@
   "AK-47 | Blue Laminate (Field-Tested)": {
     "lastPrice": 9915.0,
     "lastAlert": "2026-07-23T23:16:17.1501387+00:00"
-  },
-  "Desert Eagle | Kumicho Dragon (Field-Tested)": {
-    "lastPrice": 12864.0,
-    "lastAlert": "2026-07-24T08:47:04.1347269+00:00"
-  },
-  "AK-47 | Emerald Pinstripe (Field-Tested)": {
-    "lastAlert": "2026-07-22T23:27:14.7211687+00:00",
-    "lastPrice": 1492.0
-  },
-  "M4A4 | Griffin (Field-Tested)": {
-    "lastPrice": 2497.0,
-    "lastAlert": "2026-07-21T23:18:05.5285281+00:00"
   }
 }
