@@ -1,29 +1,119 @@
 {
+  "Desert Eagle | Mecha Industries (Field-Tested)": {
+    "lastAlert": "2026-10-12T03:20:47.5148883+00:00",
+    "lastPrice": 2700.0
+  },
+  "_lastDigestDate": "2026-10-17",
+  "M4A1-S | Nightmare (Field-Tested)": {
+    "lastPrice": 4402.0,
+    "lastAlert": "2026-10-17T01:02:25.4362492+00:00"
+  },
+  "M4A4 | Griffin (Field-Tested)": {
+    "lastPrice": 1600.0,
+    "lastAlert": "2026-10-14T00:54:15.3238302+00:00"
+  },
+  "AWP | Phobos (Field-Tested)": {
+    "lastPrice": 1113.0,
+    "lastAlert": "2026-10-06T03:06:35.4537553+00:00"
+  },
+  "AK-47 | Point Disarray (Field-Tested)": {
+    "lastAlert": "2026-10-07T01:24:14.4140032+00:00",
+    "lastPrice": 6740.0
+  },
+  "SELL::USP-S | Guardian (Field-Tested)": {
+    "lastPrice": 1686.0,
+    "lastAlert": "2026-09-24T00:03:06.2321977+00:00"
+  },
+  "AWP | Fever Dream (Field-Tested)": {
+    "lastAlert": "2026-10-11T00:49:23.9707429+00:00",
+    "lastPrice": 6602.0
+  },
+  "AK-47 | Phantom Disruptor (Field-Tested)": {
+    "lastAlert": "2026-10-14T04:26:10.7861991+00:00",
+    "lastPrice": 3019.0
+  },
+  "_updateOffset": 934632098,
+  "USP-S | Guardian (Field-Tested)": {
+    "lastPrice": 1002.0,
+    "lastAlert": "2026-10-17T03:48:56.7140992+00:00"
+  },
+  "_ipAlertSent": "2026-10-17T07:05:42.7522717+00:00",
+  "M4A1-S | Decimator (Field-Tested)": {
+    "lastAlert": "2026-10-15T15:14:11.3827617+00:00",
+    "lastPrice": 5920.0
+  },
+  "Five-SeveN | Monkey Business (Field-Tested)": {
+    "lastAlert": "2026-09-19T00:18:10.5389838+00:00",
+    "lastPrice": 6931.0
+  },
+  "_lastGoodPass": "2026-10-17T05:06:52.5005232+00:00",
+  "P250 | Asiimov (Field-Tested)": {
+    "lastPrice": 5977.0,
+    "lastAlert": "2026-10-17T03:19:03.3433159+00:00"
+  },
+  "AWP | Mortis (Field-Tested)": {
+    "lastPrice": 1795.0,
+    "lastAlert": "2026-10-10T04:02:02.1761946+00:00"
+  },
+  "M4A1-S | Basilisk (Field-Tested)": {
+    "lastPrice": 4287.0,
+    "lastAlert": "2026-10-05T01:21:24.2554767+00:00"
+  },
+  "M4A4 | Desolate Space (Field-Tested)": {
+    "lastAlert": "2026-10-04T02:18:31.7370937+00:00",
+    "lastPrice": 6798.0
+  },
+  "Glock-18 | Vogue (Field-Tested)": {
+    "lastAlert": "2026-08-24T23:53:45.8302204+00:00",
+    "lastPrice": 1163.0
+  },
   "AK-47 | Blue Laminate (Field-Tested)": {
     "lastPrice": 6936.0,
     "lastAlert": "2026-10-16T04:13:21.8288019+00:00"
   },
-  "Desert Eagle | Kumicho Dragon (Field-Tested)": {
-    "lastPrice": 8342.0,
-    "lastAlert": "2026-10-15T02:13:22.3509955+00:00"
+  "M4A4 | Evil Daimyo (Field-Tested)": {
+    "lastAlert": "2026-10-13T04:22:22.3198242+00:00",
+    "lastPrice": 1498.0
+  },
+  "AWP | Duality (Field-Tested)": {
+    "lastAlert": "2026-10-17T02:32:49.0822737+00:00",
+    "lastPrice": 1280.0
   },
   "Tec-9 | Fuel Injector (Field-Tested)": {
     "lastPrice": 6674.0,
     "lastAlert": "2026-09-20T23:56:50.8869129+00:00"
   },
-  "_lastDigestDate": "2026-10-17",
-  "_ipAlertSent": "2026-10-17T07:05:42.7522717+00:00",
-  "P250 | Asiimov (Field-Tested)": {
-    "lastPrice": 5977.0,
-    "lastAlert": "2026-10-17T03:19:03.3433159+00:00"
+  "Desert Eagle | Kumicho Dragon (Field-Tested)": {
+    "lastPrice": 8342.0,
+    "lastAlert": "2026-10-15T02:13:22.3509955+00:00"
   },
-  "Desert Eagle | Mecha Industries (Field-Tested)": {
-    "lastAlert": "2026-10-12T03:20:47.5148883+00:00",
-    "lastPrice": 2700.0
+  "AK-47 | Elite Build (Field-Tested)": {
+    "lastPrice": 1064.0,
+    "lastAlert": "2026-07-31T21:02:30.2132721+00:00"
   },
-  "Glock-18 | Vogue (Field-Tested)": {
-    "lastAlert": "2026-08-24T23:53:45.8302204+00:00",
-    "lastPrice": 1163.0
+  "USP-S | Cyrex (Field-Tested)": {
+    "lastAlert": "2026-09-22T14:13:41.4863851+00:00",
+    "lastPrice": 1936.0
+  },
+  "AK-47 | Emerald Pinstripe (Field-Tested)": {
+    "lastAlert": "2026-10-15T03:41:49.3687323+00:00",
+    "lastPrice": 1114.0
+  },
+  "USP-S | Cortex (Field-Tested)": {
+    "lastAlert": "2026-09-08T00:15:42.9481282+00:00",
+    "lastPrice": 2153.0
+  },
+  "AK-47 | Frontside Misty (Field-Tested)": {
+    "lastPrice": 8158.0,
+    "lastAlert": "2026-10-14T03:25:58.0760816+00:00"
+  },
+  "AK-47 | Redline (Field-Tested)": {
+    "lastPrice": 14769.0,
+    "lastAlert": "2026-10-17T01:01:17.4631094+00:00"
+  },
+  "SG 553 | Cyrex (Field-Tested)": {
+    "lastPrice": 2273.0,
+    "lastAlert": "2026-10-16T15:16:14.3893668+00:00"
   },
   "_signalTimes": [
     "2026-10-11T00:49:23.9733705+00:00",
@@ -53,98 +143,8 @@
     "2026-10-17T03:19:03.3459099+00:00",
     "2026-10-17T03:48:56.716583+00:00"
   ],
-  "USP-S | Guardian (Field-Tested)": {
-    "lastPrice": 1002.0,
-    "lastAlert": "2026-10-17T03:48:56.7140992+00:00"
-  },
-  "SELL::USP-S | Guardian (Field-Tested)": {
-    "lastPrice": 1686.0,
-    "lastAlert": "2026-09-24T00:03:06.2321977+00:00"
-  },
-  "USP-S | Cyrex (Field-Tested)": {
-    "lastAlert": "2026-09-22T14:13:41.4863851+00:00",
-    "lastPrice": 1936.0
-  },
-  "M4A1-S | Basilisk (Field-Tested)": {
-    "lastPrice": 4287.0,
-    "lastAlert": "2026-10-05T01:21:24.2554767+00:00"
-  },
-  "_updateOffset": 934632098,
-  "M4A4 | Griffin (Field-Tested)": {
-    "lastPrice": 1600.0,
-    "lastAlert": "2026-10-14T00:54:15.3238302+00:00"
-  },
-  "AWP | Duality (Field-Tested)": {
-    "lastAlert": "2026-10-17T02:32:49.0822737+00:00",
-    "lastPrice": 1280.0
-  },
-  "Five-SeveN | Monkey Business (Field-Tested)": {
-    "lastAlert": "2026-09-19T00:18:10.5389838+00:00",
-    "lastPrice": 6931.0
-  },
   "Glock-18 | Water Elemental (Field-Tested)": {
     "lastPrice": 12302.0,
     "lastAlert": "2026-09-06T14:14:54.2858436+00:00"
-  },
-  "M4A4 | Desolate Space (Field-Tested)": {
-    "lastAlert": "2026-10-04T02:18:31.7370937+00:00",
-    "lastPrice": 6798.0
-  },
-  "AK-47 | Frontside Misty (Field-Tested)": {
-    "lastPrice": 8158.0,
-    "lastAlert": "2026-10-14T03:25:58.0760816+00:00"
-  },
-  "AK-47 | Redline (Field-Tested)": {
-    "lastPrice": 14769.0,
-    "lastAlert": "2026-10-17T01:01:17.4631094+00:00"
-  },
-  "AK-47 | Phantom Disruptor (Field-Tested)": {
-    "lastAlert": "2026-10-14T04:26:10.7861991+00:00",
-    "lastPrice": 3019.0
-  },
-  "AK-47 | Elite Build (Field-Tested)": {
-    "lastPrice": 1064.0,
-    "lastAlert": "2026-07-31T21:02:30.2132721+00:00"
-  },
-  "M4A1-S | Nightmare (Field-Tested)": {
-    "lastPrice": 4402.0,
-    "lastAlert": "2026-10-17T01:02:25.4362492+00:00"
-  },
-  "AWP | Fever Dream (Field-Tested)": {
-    "lastAlert": "2026-10-11T00:49:23.9707429+00:00",
-    "lastPrice": 6602.0
-  },
-  "AWP | Phobos (Field-Tested)": {
-    "lastPrice": 1113.0,
-    "lastAlert": "2026-10-06T03:06:35.4537553+00:00"
-  },
-  "SG 553 | Cyrex (Field-Tested)": {
-    "lastPrice": 2273.0,
-    "lastAlert": "2026-10-16T15:16:14.3893668+00:00"
-  },
-  "_lastGoodPass": "2026-10-17T05:06:52.5005232+00:00",
-  "M4A4 | Evil Daimyo (Field-Tested)": {
-    "lastAlert": "2026-10-13T04:22:22.3198242+00:00",
-    "lastPrice": 1498.0
-  },
-  "AK-47 | Emerald Pinstripe (Field-Tested)": {
-    "lastAlert": "2026-10-15T03:41:49.3687323+00:00",
-    "lastPrice": 1114.0
-  },
-  "AWP | Mortis (Field-Tested)": {
-    "lastPrice": 1795.0,
-    "lastAlert": "2026-10-10T04:02:02.1761946+00:00"
-  },
-  "USP-S | Cortex (Field-Tested)": {
-    "lastAlert": "2026-09-08T00:15:42.9481282+00:00",
-    "lastPrice": 2153.0
-  },
-  "M4A1-S | Decimator (Field-Tested)": {
-    "lastAlert": "2026-10-15T15:14:11.3827617+00:00",
-    "lastPrice": 5920.0
-  },
-  "AK-47 | Point Disarray (Field-Tested)": {
-    "lastAlert": "2026-10-07T01:24:14.4140032+00:00",
-    "lastPrice": 6740.0
   }
 }
